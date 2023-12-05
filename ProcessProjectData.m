@@ -1,4 +1,4 @@
-function [step_stats, angles, moments, grf, startStance] = ProcessProjectData(filename)
+function [step_stats, angles, moments, grf, startStance, power] = ProcessData(filename)
     % Load and Process Data
     loadedData = load(filename);
     freq = 100;
@@ -21,6 +21,9 @@ function [step_stats, angles, moments, grf, startStance] = ProcessProjectData(fi
     mean_noForce = mean(noForce);
     std_grf = std(noForce);
     startStance = mean_noForce + 4*std_grf;
+    %markerpos = markerpos(grf(:,3)>startStance,:);
+    %grf = grf(grf(:,3)>startStance,:);
+    %COP = COP(grf(:,3)>startStance,:);
 
     COP = -COP/1000; % Convert from mm to m and rotate reference frame 180 degrees
 
@@ -132,6 +135,11 @@ function [step_stats, angles, moments, grf, startStance] = ProcessProjectData(fi
     angles = [Rfoot_angles, Rshank_angles, Rthigh_angles];
     moments = [Ma, Mk, Mh];
     % Also return grf and startStance
+
+    % call power function
+    [hipPower,kneePower,anklePower] = getJointPower(Rtrunk_angles, Rthigh_angles, ...
+                          Rshank_angles, Rfoot_angles, Mh, Mk, Ma);
+    power = [hipPower,kneePower,anklePower];
 
     % Sub-functions to keep everything nice and clean!
     function theta = getAngles(L, U)
@@ -253,5 +261,37 @@ function [step_stats, angles, moments, grf, startStance] = ProcessProjectData(fi
         if min_index == -1
             error('No valid local minimum found in the input vector.');
         end
+    end
+
+    function [hipPower,kneePower,anklePower] = getJointPower(trunkAng, thighAng, shankAng, footAng, hipT, kneeT, ankleT)
+        hipAng = [];
+        kneeAng = [];
+        ankleAng = [];
+        
+        % calculate joint angles relative to members before them
+        for i = 1:length(thighAng)
+            hipAng(i,1) = trunkAng(i,1) + (180 - thighAng(i,1));
+            kneeAng(i,1) = thighAng(i,1) + (180 - shankAng(i,1));
+            ankleAng(i,1) = shankAng(i,1) + (180 - footAng(i,1));
+        end
+
+        hipW = [];
+        kneeW = [];
+        ankleW = [];
+        hipPower = [];
+        kneePower = [];
+        anklePower = [];
+        
+        % calculate joint angular velocities
+        % calculate joint power with P = T * w
+        for i = 1:length(thighAng)-1
+            hipW(i,1) = (hipAng(i+1,1) - hipAng(i,1)) / dt;
+            kneeW(i,1) = (kneeAng(i+1,1) - kneeAng(i,1)) / dt;
+            ankleW(i,1) = (ankleAng(i+1,1) - ankleAng(i,1)) / dt;
+
+            hipPower(i,1) = hipW(i,1) * hipT(i,1);
+            kneePower(i,1) = kneeW(i,1) * kneeT(i,1);
+            anklePower(i,1) = ankleW(i,1) * ankleT(i,1);
+        end 
     end
 end
