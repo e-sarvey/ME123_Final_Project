@@ -1,16 +1,20 @@
 function [step_stats, angles, moments, grf, startStance, power] = ProcessData(filename)
     % Load and Process Data
     loadedData = load(filename);
+    fpLen = height(loadedData.ForcePlate_Data(:,:));
+    mpLen = height(loadedData.Marker_Data(:,:));
+    minLen = min([fpLen/10,mpLen]);
+
     freq = 100;
-    forceplate = downsample(loadedData.ForcePlate_Data(:,1:6), 10);
-    COP = downsample(loadedData.ForcePlate_Data(:,7:9),10); 
+    forceplate = downsample(loadedData.ForcePlate_Data(1:minLen*10,1:6), 10);
+    COP = downsample(loadedData.ForcePlate_Data(1:minLen*10,7:9),10); 
 
     % Filtering data
     [a,b] = butter(2,10/50);
     forceplate = filtfilt(a,b,forceplate);
     COP = filtfilt(a,b,COP);
     [a,b] = butter(2,5/50);
-    markerpos = filtfilt(a,b,loadedData.Marker_Data);
+    markerpos = filtfilt(a,b,loadedData.Marker_Data(1:minLen,:));
 
     % Define ground reaction force with our reference frame (opposite z)
     grf = forceplate(:,1:2);
